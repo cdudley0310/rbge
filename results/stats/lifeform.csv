@@ -1,0 +1,38 @@
+"id","data.Count","data.Percentage","tree.Count","tree.Percentage","total.Percentage"
+"Erva",5682,34.75,1567,37,27.58
+"Arvore",2155,13.18,768,18.13,35.64
+"Liana/voluvel/trepadeira",1644,10.06,505,11.92,30.72
+"Arbusto; Arvore",1174,7.18,375,8.85,31.94
+"Arbusto",2096,12.82,317,7.49,15.12
+"Subarbusto",1443,8.83,214,5.05,14.83
+"Arbusto; Subarbusto",823,5.03,107,2.53,13
+"Erva; Subarbusto",535,3.27,105,2.48,19.63
+"Arbusto; Liana/voluvel/trepadeira",171,1.05,74,1.75,43.27
+"Arbusto; Erva; Subarbusto",110,0.67,35,0.83,31.82
+"Unknown",59,0.36,21,0.5,35.59
+"Arbusto; Arvore; Subarbusto",42,0.26,16,0.38,38.1
+"Erva; Liana/voluvel/trepadeira",54,0.33,16,0.38,29.63
+"Liana/voluvel/trepadeira; Subarbusto",56,0.34,16,0.38,28.57
+"Arbusto; Arvore; Liana/voluvel/trepadeira",40,0.24,14,0.33,35
+"Erva; Suculenta",18,0.11,14,0.33,77.78
+"Erva; Subarbusto; Suculenta",12,0.07,10,0.24,83.33
+"Arbusto; Erva",30,0.18,9,0.21,30
+"Arbusto; Suculenta",24,0.15,7,0.17,29.17
+"Arvore; Liana/voluvel/trepadeira",16,0.1,6,0.14,37.5
+"Subarbusto; Suculenta",14,0.09,6,0.14,42.86
+"Arbusto; Subarbusto; Suculenta",13,0.08,5,0.12,38.46
+"Bambu",26,0.16,4,0.09,15.38
+"Arbusto; Arvore; Suculenta",6,0.04,3,0.07,50
+"Arvore; Subarbusto",10,0.06,3,0.07,30
+"Erva; Liana/voluvel/trepadeira; Subarbusto",4,0.02,3,0.07,75
+"Arbusto; Erva; Liana/voluvel/trepadeira; Subarbusto",4,0.02,2,0.05,50
+"Arbusto; Liana/voluvel/trepadeira; Subarbusto",14,0.09,2,0.05,14.29
+"Arbusto; Liana/voluvel/trepadeira; Suculenta",6,0.04,2,0.05,33.33
+"Desconhecida",28,0.17,2,0.05,7.14
+"Palmeira",31,0.19,2,0.05,6.45
+"Arbusto; Arvore; Liana/voluvel/trepadeira; Subarbusto",1,0.01,1,0.02,100
+"Arbusto; Desconhecida",1,0.01,1,0.02,100
+"Bambu; Liana/voluvel/trepadeira",2,0.01,1,0.02,50
+"Dracenuide; Erva",1,0.01,1,0.02,100
+"Liana/voluvel/trepadeira; Suculenta",1,0.01,1,0.02,100
+"Arvore; Suculenta",3,0.02,0,0,0

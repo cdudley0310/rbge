@@ -1,0 +1,387 @@
+---
+title: "Community-level Phylogeny Creation"
+output:
+  pdf_document: default
+documentclass: article
+classoptions: a4paper
+---
+
+# Data, Packages and Repeated Functions
+
+The data used for creating the phylogeny contains the names and traits of 16,349 angiosperm species found in Brazil. We were only building the phylogeny, so all of the trait data was removed from the data frame to prevent any potential confusion.
+
+## Data:
+```{r eval = FALSE}
+data <- read.csv(file.path('.', 'nordeste.csv'), header = TRUE)
+data <- data[1:4]
+data$Combination <- gsub(' ', '_', data$Combination)
+```
+
+## Packages:
+```{r eval = FALSE}
+install.packages(c('rentrez', 'pbapply', 'XML', 'plyr', 'seqinr', 'phylotools')) 
+
+library(rentrez) # provides access to the NCBI database
+library(pbapply) # provides a timer for the apply family of functions
+library(XML) # used to change xml output from NCBI to a list format
+library(dplyr)
+library(phylotools)
+```
+
+A few functions were created to facilitate the creation of the phylogeny.
+
+`SeekAndFind` is a rather large function which performs the two vital steps of finding and retrieving sequence data from the NCBI database. This function builds on the `rentrez` package, which already contains the tools for sequence identification and retrieval, by combining the two processes into one and returning the results in an R-friendly format. `SeekAndFind` also creates a vector (`Seqs`) of the taxa names pulled from the NCBI database for comparison with edited sequence lists using the `del.taxa` function. As the results are of little value in R itself, the `SeekAndFind` function also allows for them to be written directly to a .fasta file without saving them to the environment. If searching for many terms, as is the case with our data, `SeekAndFind` can take a considerably long time because NCBI requests that users only query three searches per second.
+
+`WriteFasta` builds off of `base::write` to automate the process of writing sequence labels based on provided arguments and save the sequences as a .fasta file.
+
+`del.taxa` uses the `Seqs` vector created by `SeekAndFind` to compare the sequences obtained from NCBI with the sequence .fasta file following clustering and visual inspection of the generated tree. `del.taxa` returns a vector of sequence names which were removed, allowing for a replacement search to be performed.
+
+## Repeated Functions:
+```{r eval = FALSE}
+### SeekAndFind ###
+
+SeekAndFind <- function(x, GENE = NULL, SLEN = NULL, RET = 1, 
+                        REPLACEMENT = FALSE, OUTSIDE = FALSE, 
+                        WRITE = FALSE, ...){ 
+  
+  # x = vector containing taxa names
+  # GENE = the gene region of interest; 
+    # should be written inside quotations
+  # SLEN = length of desired sequences to be returned; 
+    # should be written inside quotations
+  # RET = the sequence ID to be returned from the NCBI database; 
+    # defaults to the first sequence ID per species per desired gene; 
+    # increase if replacing anomalous sequences
+  # REPLACEMENT = whether the search is being used to search 
+    # for replacement sequences for deleted taxa or not
+  # OUTSIDE = whether the search is being used to search
+    # for taxa outside of the primary research area
+  # WRITE = whether to write the sequences to a fasta file or not; 
+    # see `WriteFasta` function for details and arguments
+  # ... = arguments to be passed on to the `WriteFasta` function
+  
+  ## Error Codes ##
+  
+  if(missing(GENE)) stop('GENE argument missing with no default value')
+  
+  ## Generate Terms ##
+  
+  terms <- paste(as.character(GENE), '[GENE] AND ',
+                 as.character(x), '[PORG]', # search for primary organism only
+                 if(!missing(SLEN)) {paste(' AND ', as.character(SLEN), 
+                                           '[SLEN]', sep = '')}, sep = '') 
+  # example term: 'atpB[GENE] AND Hydrocleys_martii[PORG] AND 500:5000[SLEN]'
+  
+  ## ID Search ##
+  
+  print('Searching for IDs')
+  
+  # a function to find and create a vector of IDs from NCBI
+  IDs <- unique(unlist(pblapply(terms, function(x){ 
+    tmp <- entrez_search(db = 'nucleotide',
+                term = x,
+                retmax = RET)
+    Sys.sleep(0.34) 
+    # allows for 0.34 seconds between searches to comply with NCBI's wishes
+    
+    # provide a vector of IDs found from the search of the NCBI database
+    if(length(tmp$ids) > (RET - 1)){ 
+      IDs <- tmp$ids[[RET]]}
+  })))
+  if(length(IDs) == 0) stop('No IDs Found')
+  
+  ## Sequence Fetch ##
+  
+  print('Fetching Sequence Data')
+  
+  # a function to fetch sequence data from NCBI
+  Seqs <- pblapply(IDs, function(x){ 
+    tmp <- entrez_fetch(db = 'nuccore', 
+                        id = x, rettype = 'gbc', retmode = 'xml')
+    Sys.sleep(0.34)
+    # fetches sequence data in an xml format from NCBI based on ID numbers 
+    # obtained from the '### ID Search ###' section; results include specimen
+    # accession number, taxonomy and sequence, as well as additional data
+    
+    unlist(tmp, use.names = FALSE) 
+    tmp <- xmlToList(tmp) 
+    # provides an R-friendly list of the xml data retrieved
+    
+    rapply(tmp, function(x) gsub(' ', '_', x), how = 'replace') 
+    # replaces the spaces in x with '_' to prevent the sequence label being 
+    # truncated when creating trees
+  })
+  
+  ## Write Fasta File ##
+  
+  if(WRITE == TRUE) {
+    print('Writing Fasta File')
+    WriteFasta(Seqs, GENE = GENE, OUTSIDE = OUTSIDE, ...) 
+  } # see `WriteFasta` function below for details
+  
+  ## Save Vector of Included Taxa ##
+  
+  if(REPLACEMENT == FALSE & OUTSIDE == FALSE) 
+    Seqs <<- sapply(Seqs, function(x){
+                    sub('_[[:alpha:]]*\\..*$', '', x$INSDSeq$INSDSeq_organism)
+  }) 
+  # will save a vector, 'Seqs', of combination names to the global 
+  # environment for comparison with sequence list edited following 
+  # clustering and visual inspection
+  
+  if(REPLACEMENT == FALSE & OUTSIDE == TRUE) 
+    Seqs <<- sapply(Seqs, function(x){
+                    sub('_.*$', '', x$INSDSeq$INSDSeq_organism)
+  }) 
+} # same as above
+
+### WriteFasta ###
+
+WriteFasta <- function(x, GENE = NULL, ACCESSION = FALSE, FAMILY = FALSE,
+                       COMBINATION = FALSE, GENUS = FALSE, COMP = FALSE, 
+                       OUTSIDE = FALSE, APPEND = FALSE){ 
+  
+  # x = list of sequence data downloaded from NCBI
+  # APPEND = whether to append the data to an existing file or not; 
+    # 'APPEND = TRUE' when adding replacement and outside sequences
+  # see below in '### Function ###' for information on other arguments
+  
+   ## Error Codes ##
+  
+  if(ACCESSION == FALSE & FAMILY == FALSE & 
+     COMBINATION == FALSE & GENUS == FALSE
+     ) stop ('No labels provided for sequences; use ACCESSION, 
+             FAMILY, COMBINATION and/or GENUS arguments to 
+             provide labels for sequences')
+  if(missing(GENE)
+     ) stop ('GENE argument missing with no default value')
+  
+  ## Function ##
+  
+  fasta <- sapply(x, function(x){
+    paste('>',
+        if(ACCESSION == TRUE) paste(x$INSDSeq$INSDSeq_locus, '_', sep = ''),
+        if(FAMILY == TRUE) paste(regmatches(x$INSDSeq$INSDSeq_taxonomy, 
+                                 regexpr('[[:alpha:]]*aceae', 
+                                 x$INSDSeq$INSDSeq_taxonomy)), '_', sep = ''), 
+        if(COMBINATION == TRUE) sub('_[[:alpha:]]*\\..*$', '', 
+                                 x$INSDSeq$INSDSeq_organism),
+        if(GENUS == TRUE) sub('_.*$', '', x$INSDSeq$INSDSeq_organism),
+        if(COMP == TRUE) '_comp.', # for composite taxa
+        if(OUTSIDE == TRUE) '_OUTSIDE', # for taxa outside the research area
+        '\n', x$INSDSeq$INSDSeq_sequence,
+        sep = '')})
+  
+  write(fasta, file.path('..', 'results', 'sequences', as.character(GENE), 
+                         paste(as.character(GENE), '_sequences.fasta', 
+                               sep = '')), append = APPEND) 
+} # writes files to '../results/sequences/GENE/GENE_sequences.fasta' 
+  # or the Windows equivalent
+
+### del.taxa ###
+
+del.taxa <- function(x, OUTSIDE = FALSE) { 
+  
+  # x = the gene region of interest used to create the single gene tree; 
+    # parameter should be written inside quotations
+  # OUTSIDE = whether or not we or comparing taxa outside of the research area
+  
+  if(OUTSIDE == FALSE) {
+  tmp <- phylotools::read.fasta(file.path(
+         '..', 'results', 'sequences', as.character(x), 
+         paste(as.character(x), '_sequences.fasta', sep = '')))
+  tmp <- regmatches(tmp$seq.name, regexpr('[[:alpha:]]*_[^_]*$', tmp$seq.name))
+  setdiff(Seqs, tmp)
+  } else{
+    tmp <- phylotools::read.fasta(file.path(
+           '..', 'results', 'sequences', as.character(x), 
+           paste(as.character(x), '_sequences.fasta', sep = '')))
+    tmp <- sub('^.*aceae_', '', tmp$seq.name)
+    tmp <- sub('_.*$', '', tmp)
+    setdiff(Seqs, tmp)
+    }
+} # outputs contain the taxa removed, allowing for a replacement search
+```
+
+# Part One - Initial Tree Building
+
+Sequences were downloaded from the NCBI database using the `SeekAndFind` function. This function creates search terms based on a vector containing species of interest. A gene region of interest and, if desired, a range of sequence lengths are added to the search term via arguments to the function. An initial search of the NCBI database provides sequence IDs which are then used by the function to download species data from NCBI. The downloaded data contains the taxonomy and sequence, among other data, for the taxa. Finally, `SeekAndFind` is used to write the sequence data to a fasta file, with sequence labels in the form of '>Accession_Family_Genus_species', and provides a vector of species' names (`Seqs`) for later use. 
+
+## Initial Accession Search and Sequence Fetch:
+```{r eval = FALSE}
+SeekAndFind(data$Combination, GENE = 'atpB', SLEN = '500:5000', RET = 1,
+            WRITE = TRUE, ACCESSION = TRUE, FAMILY = TRUE, COMBINATION = TRUE) 
+# a search of the NCBI database for taxa of interest with sequence data for the 
+# 'atpB' gene between 500 and 5000 nucleotides in length; writes the retrieved 
+# data to '../results/sequences/atpB/atpB_sequences.fasta'
+```
+
+## VSEARCH Clustering
+
+To ensure the sequences downloaded from NCBI were approriate for creating our trees, we clustered the downloaded sequences around known example sequences. The known sequences were placed at the top of the sequence fasta file and the fasta file was run through a VSEARCH clustering. [VSEARCH v2.4.4](https://github.com/torognes/vsearch) is a free and open-source alternative to USEARCH which is useful for large sets of data that would normally require the paid version of USEARCH.
+
+```{}
+vsearch --id 0.40 --notrunclabels --cluster_fast [input] --clusters [output]
+```
+```{r eval = FALSE}
+system2('vsearch', args = c('--id 0.40', '--notrunclabels', '--cluster_fast', 
+        file.path('..', 'results', 'sequences', 'atpB', 'atpB_sequences.fasta'),
+        '--clusters', file.path('..', 'results', 'clustering', 'atpB/')) 
+        # using the `system2()` command lets us directly access the 
+        # command line from RStudio
+```
+
+The argument '--id 0.40' required sequences to be at least 40% similar to the cluster seed (the known sequence) to be part of the cluster. If sequences were less than 40% similar, a new cluster was created. We only used the sequences found in the cluster with at least 40% similarity to the seed.
+
+## Mafft Alignment
+
+Alignment was performed with [Mafft v7.305b](https://mafft.cbrc.jp/alignment/software/). Gap opening and extension penalties were left at their default values.
+
+```{}
+mafft --adjustdirection --reorder [input] > [output]
+```
+```{r eval = FALSE}
+system2('mafft', args = c('--adjustdirection', '--reorder', 
+        file.path('..', 'results', 'clustering', 'atpB', '0.fasta'), '>', 
+        file.path('..', 'results', 'alignments', 'atpB', 'atpB_alignment2.fasta'))
+```
+
+`[output]` was in the format '/results/alignments/GENE/GENE_alignment.fasta' with 'GENE' being replaced as required in order to ensure the correct use of a later function (`single.tree`). The `--adjustdirection argument` was used to allow mafft to reverse sequences to find the best alignment and `--reorder` was used to change the order of the sequences in the output.
+
+## Tree Building with FastTree
+
+Rather than use a pure maximum likelihood method to build the initial trees, we opted for a faster route using the neighbor-joining/approximate-maximum-likelihood method in [FastTree v2.1.10](http://www.microbesonline.org/fasttree/). We often would need to build multiple trees based on the same gene and replace a handful of anomalous tips with each iteration; FastTree proved to be a great time saver for this process. Default FastTree parameters were used for a nucleotide alignment (`-nt`).
+
+```{}
+FastTree -nt [input] > [output]
+```
+```{r eval = FALSE}
+system2('FastTree', args = c('--nt', 
+        file.path('..', 'results', 'alignments', 'atpB', 'atpB_alignment.fasta'), '>', 
+        file.path('..', 'results', 'trees', 'atpB.tree')))
+```
+
+## Visual Analysis
+
+Trees were visually analysed in [FigTree v.1.4.3](http://tree.bio.ed.ac.uk/software/figtree/). Taxa on long branches and anomalous taxa were removed using [BioEdit v.7.0.5](http://www.mbio.ncsu.edu/BioEdit/bioedit.html) with the remaining sequences (gaps removed) overwriting the initial sequence fasta file for comparison with the pre-edited collection of sequences obtained from NCBI.
+
+## Replacement:
+
+When possible, the species removed through clustering and visual analysis were replaced by re-running the `SeekAndFind` function and only searching for additional instances of the species which were removed. The taxa found in the initial search were saved to the global environment as the value `Seqs`, and we used the `del.taxa` function as the input for `SeekAndFind` to compare `Seqs` with the taxa remaining after clustering and visual inspection, providing a vector of removed taxa. 
+
+For example, below we increased `RET` to 2, grabbing the second ID for the desired species where available, ensuring that it was not an ID from the initial search. If we were to run more than one replacement search, we would have simply increased `RET` accordingly. We also added `APPEND = TRUE`, telling the function to add any new sequences to the current sequence file rather than overwriting the file. Similarly, we added `REPLACEMENT = TRUE` to avoid overwriting `Seqs` in case further comparison and replacement was required. Note that the vector containing the taxa to be replaced came directly from the `del.taxa` function.
+
+```{r eval = FALSE}
+SeekAndFind(del.taxa('atpB'), GENE = 'atpB', SLEN = '500:5000', 
+            RET = 2, REPLACEMENT = TRUE, WRITE = TRUE, ACCESSION = TRUE, 
+            FAMILY = TRUE, COMBINATION = TRUE, APPEND = TRUE)
+```
+
+After searching for replacement sequences, we ran **VSEARCH Clustering**, **Mafft Alignment**, **Tree Building with FastTree** and **Visual Analysis** again.
+
+# Part Two - Adding Outside Taxa
+
+Following replacement in all single-gene trees, we looked for taxa related to those in our database, but which were outside of the target research area. Specifically, we were interested in genera for which we found no sequences and contained only 1 or 2 species in our research area. To determine the genera which met our requirements, we added the accession numbers of our sequences to our dataframe (`data`) using the `AddAccessionstoDF` function. Once the accession numbers for all gene regions of interest were added to the dataframe, we used the `naFind` function to create a vector of genera which lacked sequence data and contained only 1 or 2 species.
+
+## Finding Additional Taxa
+```{r eval = FALSE}
+### AddAccessionsToDF ###
+
+AddAccessionsToDF <- function(x, GENE = NULL){ 
+  
+  # x = data frame containing combination names; 
+    # accessions will be added to this data frame
+  # GENE = the gene region of interest used to create the single gene tree; 
+    # parameter should be written inside quotations
+  
+  ## Error Codes ##
+  
+  if(missing(GENE)) stop('GENE argument missing with no default value')
+  
+  ## Function ##
+  
+  tmp <- phylotools::read.fasta
+         (file.path('..', 'results', 'alignments', as.character(GENE), 
+                    paste(as.character(GENE), '_alignment.fasta', sep = '')))
+  y <- data.frame(regmatches(tmp$seq.name, regexpr('[[:alnum:]]{4,}', tmp$seq.name))) 
+    # grabs the accession numbers from the sequence labels
+  y$Combination <- sub('^.*aceae_', '', tmp$seq.name) 
+    # removes everything in the sequence name before the genus, 
+    # leaving only 'Genus_species'
+  names(y)[1] <- as.character(GENE)
+  join(x, y, by = 'Combination')
+}
+data <- AddAccessionsToDF(data, 'atpB')
+
+### naFind ###
+
+naFind <- function(x, geneCount = NULL){ 
+  
+  # x = dataframe containing accessions for each gene region of interest
+  # geneCount = the number of gene regions of interest for the study
+  
+  ## Error Code ##
+  
+  if(missing(geneCount)) stop('geneCount argument missing with no default value')
+  
+  ## Function ##
+  
+  x$na <- rowSums(!is.na(x[tail(seq_along(x), geneCount)])) 
+    # sums the presence of elements in the rows of x containing accession numbers
+  sum.na <- x %>%
+    group_by(Genus) %>%
+    summarise(number_of_seqs = sum(na), n = table(Genus))
+  na <- sum.na[sum.na$number_of_seqs == 0 & sum.na$n < 3, ]
+  na$Genus
+}
+```
+
+Below, we were looking to add sequences from outside of the research area so we made `REPLACEMENT = FALSE`, `COMP = TRUE` and `OUTSIDE = TRUE`. We were writing these to the previous sequence fasta file so `WRITE = TRUE` and `APPEND = TRUE`. The sequences were labeled in the format 'Accession_Family_Genus_comp._OUTSIDE' where 'comp.' indicates that the species level is of no interest and we were potentially creating composite taxa for the purpose of concatenating alignments. Note that the vector containing the taxa to be replaced came directly from the `naFind` function. Because of taxonomical synonyms, the genera from the `naFind` function indicated as having no sequence data and fewer than three species could pull sequences with different generic names, possibly even names of genera with plenty of sequences already in our sequence file.
+
+## Searching for taxa outside of Brazil:
+```{r eval = FALSE}
+SeekAndFind(naFind(data, geneCount = 4), GENE = 'atpB', SLEN = '500:5000', 
+            RET = 1, REPLACEMENT = FALSE, OUTSIDE = TRUE, WRITE = TRUE, 
+            ACCESSION = TRUE, FAMILY = TRUE, GENUS = TRUE, COMP = TRUE, 
+            APPEND = TRUE) 
+```
+
+**VSEARCH Clustering**, **Mafft Alignment**, **Tree Building with FastTree** and **Visual Analysis** from **Part One** were run again before searching for any needed replacement sequences for the taxa outside of Brazil. The `del.taxa` function once again provided the input data for `SeekAndFind`, this time with the argument `OUTSIDE = TRUE` indicating that we were replacing sequences found outside of the research area. For the `SeekAndFind` function, `RET` was once again increased to search for the second (or third, fourth, etc.) instance of a term. `REPLACEMENT = TRUE` was also added to avoid overwriting `Seqs`.
+
+## Replacement of anomalous taxa outside of Brazil:
+```{r eval = FALSE}
+SeekAndFind(del.taxa('atpB', OUTSIDE = TRUE), GENE = 'atpB', SLEN = '500:5000', 
+            RET = 2, REPLACEMENT = TRUE, OUTSIDE = TRUE, WRITE = TRUE, 
+            ACCESSION = TRUE, FAMILY = TRUE, GENUS = TRUE, COMP = TRUE, 
+            APPEND = TRUE)
+```
+
+Following replacement of anomalous taxa outside of Brazil, **VSEARCH Clustering**, **Mafft Alignment**, **Tree Building with FastTree** and **Visual Analysis** from **Part One** were run again giving us the final single-gene alignments and trees.
+
+# Part Three - Combining Trees
+
+In order to combine the single-gene alignments, we needed to standardise the names of the sequences by removing accession numbers and Mafft alignment directional indicators, leaving only 'Family_Genus_species' and 'Family_Genus_comp._OUTSIDE'. For this, we use the `single.tree` function which removes the accession numbers and mafft directional indicators from the sequence names and saves the sequences to a .fasta file.
+
+## Combine Single Gene Trees:
+```{r eval = FALSE}
+single.tree <- function(x) {
+  
+  # x = the gene region of interest used to create the single gene tree; 
+    # parameter should be written inside quotations
+  
+  tmp <- phylotools::read.fasta(
+         file.path('..', 'results', 'alignments', as.character(x), 
+                   paste(as.character(x), '_alignment.fasta', sep = '')))
+  tmp$seq.name <- regmatches(tmp$seq.name, regexpr('[[:alpha:]]*aceae_.*$', tmp$seq.name)) 
+    # rewrites 'tmp$seq.name' to remove accession numbers and mafft directional indicators
+  seqinr::write.fasta(as.list(tmp$seq.text), tmp$seq.name, 
+                      file.path('..', 'results', 'alignments', as.character(x), 
+                                paste(as.character(x), '_final_alignment.fasta', 
+                                sep = ''))) # rewrites the fasta alignment file
+  }
+test <- single.tree('atpB')
+```
+
+## Final Tree Building
+
+Once all of the accession numbers and Mafft directional indicators were removed, [Sequence Matrix](http://www.ggvaidya.com/taxondna/) was used to combine the single-gene alignments and export the combined .phylip file for analysis using RAxML. The final, combined gene tree was built using the RAxML-HPC2 on XSEDE tool on the [CIPRES Science Gateway](https://www.phylo.org). The tree building analysis was allowed to run for a maximum of 72 hours. All other parameters were left at their default values.

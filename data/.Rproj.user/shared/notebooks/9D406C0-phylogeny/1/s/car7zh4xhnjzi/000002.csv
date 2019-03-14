@@ -1,0 +1,39 @@
+"0","```r
+AddAccessionsToDF <- function(x, GENE = NULL){ # a function for adding accession numbers to our dataframe ('data')
+  
+  # x = dataframe containing combination names; accessions will be added to this dataframe
+  # GENE = the gene region of interest used to create the single gene tree; parameter should be written inside quotations
+  
+  ### Error Codes ###
+  
+  if(missing(geneCount)) stop('geneCount argument missing with no default value')
+  
+  ### Function ###
+  
+  tmp <- read.fasta(file.path('..', 'Results', 'alignments', as.character(GENE), paste(as.character(GENE), '_alignment.fasta', sep = '')))
+  y <- data.frame(regmatches(tmp$seq.name, regexpr('[[:alnum:]]{4,}', tmp$seq.name))) # grabs the accession numbers from the sequence labels
+  y$Combination <- sub('^.*aceae_', '', tmp$seq.name) # removes everything in the sequence name before the genus, leaving only 'Genus_species'
+  names(y)[1] <- as.character(GENE)
+  join(x, y, by = 'Combination') # join functions similar to merge except that it does not reorder the data frames in question, it simply matches y to x based on the 'by = ' argument and adds the additional columns in y to the tail end of x
+}
+data <- AddAccessionsToDF(data, 'atpB') # adds the accession numbers for the sequences pulled from NCBI to 'data' 
+
+# Once the accession numbers for all desired gene sequences are added to the dataframe, we create a new dataframe containing the genera which lack any sequence data and contain less than three species in our region of interest
+
+naFind <- function(x, geneCount = NULL){ # a function for determining which genera lack sequence data and contain only 1 or 2 species
+  
+  # x = dataframe containing accessions for each gene region of interest
+  # geneCount = the number of gene regions of interest for the study
+  
+  ### Error Codes ###
+  
+  if(missing(geneCount)) stop('geneCount argument missing with no default value')
+  
+  ### Function ###
+  
+  x$na <- rowSums(!is.na(x[tail(seq_along(x), geneCount)])) # sums the presence of elements in the rows of x containing accession numbers
+  sum.na <- ddply(x, ~Genus, summarise, number_of_seqs = sum(na), n = table(Genus)) # summarises the values in 'x$na' by 'Genus'
+  na <- sum.na[sum.na$number_of_seqs == 0 & sum.na$n < 3, ] # selects only the genera with 0 sequence data and < 3 species
+  na$Genus
+}
+```"

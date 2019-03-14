@@ -1,0 +1,18 @@
+"0","```r
+install.packages('rentrez') # used to search the NCBI database for information on taxa (sequences, accessions, taxonomy, etc.)
+library(rentrez)
+
+install.packages('pbapply') # adds a progress bar to the apply family of functions for monitoring slow functions
+library(pbapply)
+
+install.packages('XML') # for unpacking XML files downloaded from NCBI
+library(XML) 
+
+install.packages('plyr') # for use in summarising the number of accessions obtained per genus with the 'ddply' function; also contains the function 'join', which is similar to 'merge' but does not change the order of rows when combining data
+library(plyr)
+
+install.packages('phylotools') # for reading fasta files into R
+library(phylotools)
+
+install.packages('seqinr') # for writing final sequence data; as it shares the command 'read.fasta' with phylotools, we only library it when it is required and then detach it
+```"
