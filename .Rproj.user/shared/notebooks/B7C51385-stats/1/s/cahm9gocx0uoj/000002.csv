@@ -1,0 +1,4 @@
+"0","kable(summary(alignment$missing) / 20376 * 100, caption = 'A summary of missing percentages', booktabs = TRUE, linesep = '') %>%"
+"0","  kable_styling(latex_options = c('striped', 'hold_position'))"
+"2","Error in dimnames(x) <- dnx : 'dimnames' applied to non-array
+"

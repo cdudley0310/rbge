@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1556697610707.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1308037958",
+    "id" : "B0B44A0A",
+    "lastKnownWriteTime" : 1556698740,
+    "last_content_update" : 1556698740101,
+    "path" : "~/Library/Mobile Documents/com~apple~CloudDocs/RBGE/data/stats.Rmd",
+    "project_path" : "data/stats.Rmd",
+    "properties" : {
+        "cursorPosition" : "175,31",
+        "last_setup_crc32" : "3160BBDAfda3e328",
+        "scrollLine" : "162"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

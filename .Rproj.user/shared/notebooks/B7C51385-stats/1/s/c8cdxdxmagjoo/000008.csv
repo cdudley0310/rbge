@@ -1,0 +1,5 @@
+"0",""
+"0","### phylo$Combination <- sub('.*aceae ', '', phylo$Taxon)"
+"0",""
+"0","# select only the species from the data which were used to create the phylogeny"
+"0","(stats <- semi_join(data, phylo, by = 'Combination'))"

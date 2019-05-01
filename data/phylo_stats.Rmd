@@ -1,0 +1,281 @@
+---
+title: "Phylogeny Statistics"
+output:
+  pdf_document: 
+    df_print: kable
+---
+```{r setup, include = FALSE}
+library(knitr) # for r markdown control
+library(kableExtra) # r markdown extras
+
+# a prefix nulling hook.
+
+# make sure to keep the default for normal processing
+default_output_hook <- knitr::knit_hooks$get('output')
+
+# output hooks handle normal R console output
+knitr::knit_hooks$set(output = function(x, options) {
+  
+  # grab 'comment' setting
+  comment <- knitr::opts_current$get('comment')
+  
+  # if NA, replace comment with ''
+  if(is.na(comment)) comment <- ''
+  
+  # regex to logically detect '\\s*[#]' string in x (the output string)
+  can_null <- grepl(paste0(comment, '\\s*\\[\\d+\\]'), 
+                     x, perl = TRUE)
+  
+  # check if 'null_prefix' chunk option is set to TRUE
+  do_null <- isTRUE(knitr::opts_current$get('null_prefix'))
+  
+  if(can_null && do_null) {
+    
+    # R print output aligns at the right brace, gather this value - 1
+    align_index <- regexpr('\\]', x)[1] - 1
+  
+    # start of string, any character matching align_index times followed by ]
+    re <- paste0('^.{', align_index, '}\\]\\s?')
+    rep <- comment
+    x <- gsub(re, rep, x) # replace re with empty string in x
+    
+    # new line, any character matching align_index times followed by ]
+    re <- paste0('\\\n.{', align_index, '}\\]\\s?')
+    rep <- paste0('\n', comment) # new line followed by comment
+    x <- gsub(re, rep, x) # replace re with new line followed by comment
+  }
+  
+  default_output_hook(x, options)
+
+})
+
+# set knitr defaults
+knitr::opts_chunk$set(cache = TRUE,
+                      comment = NA, # remove ## from output
+                      message = FALSE, 
+                      warning = FALSE, 
+                      error = FALSE,
+                      fig.align = 'center',
+                      null_prefix = TRUE) # remove [1] from output
+
+options(knitr.table.format = 'latex')
+```
+
+## Background
+
+After creating the community-level phylogeny of the angiosperm species found in Brazil, we wanted to get a better idea of what the phylogeny contained. Using proportion tables, we can get a numeric summary of the make-up of the phylogeny for multiple variables of interest. In Part 1, we look at the Family, Lifeform, Phytogeographic Domain and State (administrative region) make-up of the species that compose our phylogeny. In Part 2, we create a list of all the species which were not used to build the phylogeny and we also look at the average node support of the phylogeny to gauge the quality of the phylogeny.
+
+## Part I -- Phylogeny Content Statistics
+
+### Packages
+```{r packages}
+library(tidyverse) # for general data manipulation
+```
+
+### Data
+
+The data used for the descriptive statistics of the phylogeny comes from two sources: the overall dataset used to build the phylogeny and a tab-delimited table exported by [Sequence Matrix v1.8](http://www.ggvaidya.com/taxondna/) containing the names of the taxa used in the final alignment, along with the identity and length of the gene regions sequenced for those taxa. The two data frames are joined together using `dplyr::semi_join()` to create a single data frame containing information on the family, phytogeographic domain, lifeform and location (state) for the species found in the phylogeny. The composite taxa from outside of Brazil were removed for these statistics.
+
+```{r data, results = 'hide'}
+# tibble containing information for all species found in Brazil
+
+(data <- read_csv('nordeste.csv'))
+
+# tibble containing all taxa found in the phylogeny
+
+(phylo <- read_csv('alignment_table.csv'))
+
+# remove OUTSIDE taxa from the data; total of 248 OUTSIDE taxa removed
+(phylo <- phylo %>% 
+  filter(str_detect(Taxon, 'OUTSIDE', negate = TRUE)) %>% 
+  mutate(Combination = str_replace(Taxon, '.*aceae\\s', '')))
+
+### phylo$Combination <- sub('.*aceae ', '', phylo$Taxon)
+
+# select only the species from the data which were used to create the phylogeny
+(stats <- semi_join(data, phylo, by = 'Combination'))
+
+# 6 taxa were renamed during the ncbi search and their synonym equivalent 
+# in the data could not be found; they are tacked on to the end of 
+# the stats data for completeness as they were used in the tree
+(stats <- phylo %>% 
+  select(Combination) %>% 
+  setdiff(select(stats, Combination)) %>% 
+  mutate(Family = c('Bromeliaceae', 'Fabaceae', 'Fabaceae', 
+                    'Fabaceae', 'Poaceae', 'Poaceae')) %>% 
+  full_join(stats, .))
+```
+
+### The `tbl_func` Function
+
+The function `tbl_func` was created to count instances of a desired variable in both the overall set of data and the subset containing only the species found in the phylogeny. `tbl_func` also provides the percentage value of the variable to the whole in the data_Percentage and tree_Percentage columns. Lastly, `tbl_func` creates a column (total_Percentage) indicating the percentage of overall data that is found in the phylogeny for a particular variable.
+
+```{r tbl_func}
+tbl_func <- function(x, y, States = FALSE){ # function to create % tables
+  
+    # x -- variable from the overall set of data
+    # y -- variable from the phylogeny subset
+    # States -- whether or not the variable of interest is the location (state)
+  
+    # data frame containing counts and percentages of overall data  
+    tbl.x <- x
+    res.x <- data.frame(cbind(row.names(tbl.x), tbl.x, 
+      if(States == TRUE) {
+        round(tbl.x / nrow(data) * 100, 2)
+      } else {
+        round(prop.table(tbl.x) * 100, 2)}))
+    colnames(res.x) <- c('id', 'data_Count', 'data_Percentage')
+    
+    # data frame containing counts and percentages of phylogeny data
+    tbl.y <- y
+    res.y <- data.frame(cbind(row.names(tbl.y), tbl.y, 
+      if(States == TRUE) {
+        round(tbl.y / nrow(stats) * 100, 2)
+        } else {
+          round(prop.table(tbl.y) * 100, 2)}))
+    colnames(res.y) <- c('id', 'tree_Count', 'tree_Percentage')
+    
+    # join the above data frames and add a column showing the 
+    # percentage of overall data that is found in the tree
+    res <- full_join(res.x, res.y, by = 'id')
+    
+    # rename any empty id names 'Unknown'
+    (res <- res %>% 
+      mutate(id = str_replace(id, '^$', 'Unknown')) %>% 
+      mutate_all(type.convert) %>% 
+      mutate_if(is.numeric, ~replace_na(., 0)) %>% 
+      # column showing the percentage of overall data that is found in the tree
+      mutate(total_Percentage = round(tree_Count / data_Count * 100, 2)))
+}
+```
+
+### Descriptive Statistics
+
+#### Family
+
+We can use the Family columns of our data sets to illustrate the use of `tbl_func`. The two variables for the function are `table(data$Family)` and `table(stats$Family)` and these provide a count of the number of taxa belonging to each family in the data sets and the function does the rest. 
+
+As the table shows, in the overall data, there are 1,328 members of the Fabaceae family, comprising 8.12% of all taxa in the data set. There are 601 members of the Fabaceae family in the phylogeny, comprising 14.17% of all taxa in the tree. Of all 1,328 Fabaceae in the overall data set, only 45.26% of them were used in the creation of the phylogeny. The function has also been applied to the Lifeform, Phyotogeographic Domain and State columns below. Please note that the taxa from outside of Brazil were not included in these statistics.
+
+```{r family}
+tbl_func(table(data$Family), table(stats$Family)) %>% 
+  arrange(desc(tree_Percentage)) %>% 
+  kable(booktabs = TRUE, longtable = TRUE) %>% 
+  kable_styling(latex_options = c('repeat_header', 'striped', 'hold_position'), 
+                repeat_header_text = 'Family (continued)', 
+                repeat_header_method = 'replace',
+                font_size = 9)
+```
+
+#### Lifeform
+
+```{r lifeform}
+tbl_func(table(data$Formas_de_Vida), table(stats$Formas_de_Vida))  %>% 
+  arrange(desc(tree_Percentage)) %>% 
+  kable(booktabs = TRUE, longtable = TRUE) %>% 
+  kable_styling(latex_options = c('repeat_header', 'striped', 'hold_position'), 
+                repeat_header_text = 'Lifeform (continued)', 
+                repeat_header_method = 'replace',
+                font_size = 9) %>% 
+  column_spec(1, width = '10em')
+```
+
+#### Phytogeographic Domain
+
+```{r domain, eval = FALSE}
+# included but not evalutated due to a bug with knitr/kable
+tbl_func(table(data$Dom_Fitogeografico), table(stats$Dom_Fitogeografico))  %>% 
+  arrange(desc(tree_Percentage)) %>% 
+  kable(booktabs = TRUE, longtable = TRUE) %>% 
+  kable_styling(latex_options = c('repeat_header', 'striped', 'hold_position'), 
+                repeat_header_text = 'Domain (continued)', 
+                repeat_header_method = 'replace',
+                font_size = 9) %>% 
+  column_spec(1, width = '10em')
+```
+
+#### States
+
+The State columns were arranged differently from the other variables of interest in the data set and so `tbl_func` acts slightly different for the states. Rather than using `table(x)` and `table(y)`, data frames containing column sums were created and used as the data sources for the function. Each column represented a single state and the elements inside were either a 1 (for the presence of the taxa in that state), a 0 (for the absence) or an NA (for no data). When summed together, this provided a count of how many taxa were found in each state. As taxa could be found in multiple states, the proportion of a particular state's contribution to the whole was determined by dividing the sum of that state by the total number of taxa (16,349 for the overall data and 4,241 for the phylogeny) in each data set.
+
+For example, the Brazilian state of Minas Gerais (MG) contains 11,136 of the species in our data, accounting for 68.11% of overall species. In the phylogeny, there are 2,933 species that can be found in Minas Gerais, accounting for 69.16% of the overall tree. Of the species which can be found in Minas Gerais, only 26.34% were used in the creation of the phylogeny. Based on these numbers alone, Minas Gerais would be an excellent state to focus collections on because of the large number and high proportion of species which have not been collected and sequenced.
+
+```{r states}
+tbl_func(data.frame(colSums(data[10:36])), 
+         data.frame(colSums(stats[10:36], na.rm = TRUE)), 
+         States = TRUE)  %>% 
+  arrange(desc(tree_Percentage)) %>% 
+  kable(booktabs = TRUE, longtable = TRUE) %>% 
+  kable_styling(latex_options = c('repeat_header', 'striped', 'hold_position'), 
+                repeat_header_text = 'State (continued)', 
+                repeat_header_method = 'replace',
+                font_size = 9)
+```
+
+## Part II -- Missing Data and Node Support Values
+
+### Packages
+
+```{r part_2_packages, message = FALSE}
+library(dplyr)
+library(phylotools)
+```
+
+### Data
+
+Determining the amount of missing data in the alignment and the average node support values required the final, combined alignment and the phylogenetic tree data, respectively.
+
+```{r part_2_data, results = 'hide'}
+# alignment data
+
+alignment <- read.phylip(file.path('..', 'results', 'alignments', 
+                                   'combined_alignment', 'final_combined_alignment'))
+alignment$family <- factor(str_replace_all(alignment$seq.name, '_.*', ''))
+
+# phylogenetic tree data
+
+tree <- read.tree(file.path
+        ('..', 'results', 'trees', 'combined_tree', 'combined_tree.tree'))
+tree$node.label <- as.numeric(tree$node.label)
+```
+
+### Missing Data
+
+For our purposes, missing data was considered to be anything other than an A, T, C or G. This includes indels (both interior and exterior), abbreviations for uncertain nucleotides (N, R, Y, W, S, M, K, etc.) and questions marks (indicating a complete lack of a gene region sequence). The amount of missing data in the alignment was overall rather high with a mean of 90.16% of the alignment containing missing data. Missing data could potentially be reduced by manually pruning large gaps in the alignment caused by small numbers of taxa. While the average family contained a mean of 89.26% missing data, the alignments of some families proved to be more complete than others with a range of 31.86% separating the minimum and maximum missing data percentages.
+
+```{r missing_data, collapse = FALSE}
+# create a column displaying the number of missing values per species
+alignment$missing <- map_dbl(alignment$seq.text, function(x) {
+  length(unlist(str_extract_all(x, ('[^ATCG]'))))
+}) # 20,376 total loci per taxa
+
+summary(alignment$missing) / 20376 * 100 # summary of missing percentages
+
+ali_mis <- alignment %>%
+    group_by(family) %>%
+    summarise(missing.perc = ((sum(missing) / length(family)) / 20376) * 100)
+summary(ali_mis$missing.perc) # summary of missing percentages by family
+```
+
+### Node Support Values
+
+Node support values had a median of 70.0 and a mean of 63.8. A fairly large number of unsupported or minimally supported nodes, mostly near the root of the tree, are a possible cause for the skewed mean value. A total of 439 nodes out of 4488 (9.78%) have a bootstrap value of 10 or less, with 134 nodes having 0 support.
+
+```{r node_support}
+tree <- read.tree(file.path
+                 ('..', 'results', 'trees', 'combined_tree', 'combined_tree.tree'))
+tree$node.label <- as.numeric(tree$node.label)
+
+# summary of node support values
+summary(tree$node.label) 
+
+# a count of the 11 lowest bootstrap values
+data.frame(table(tree$node.label), row.names = NULL) %>% 
+  rename(Node_Support = Var1, n = Freq) %>% 
+  slice(1:11) %>% 
+  kable(booktabs = TRUE, longtable = TRUE) %>% 
+  kable_styling(latex_options = c('repeat_header', 'striped', 'hold_position'), 
+                repeat_header_text = 'State (continued)', 
+                repeat_header_method = 'replace',
+                font_size = 9)
+```

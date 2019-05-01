@@ -1,0 +1,5 @@
+"0",""
+"0","# remove OUTSIDE taxa from the data; total of 248 OUTSIDE taxa removed"
+"0","(phylo <- phylo %>% "
+"0","  filter(str_detect(Taxon, 'OUTSIDE', negate = TRUE)) %>% "
+"0","  mutate(Combination = str_replace(Taxon, '.*aceae\\s', '')))"

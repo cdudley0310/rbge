@@ -1,0 +1,3 @@
+"0","states_tbl <- tbl_func(data.frame(colSums(data[10:36])), data.frame(colSums(stats[10:36], na.rm = TRUE)), "
+"0","        States = TRUE)"
+"0","states_tbl[order(-states_tbl$tree_Percentage), ]"

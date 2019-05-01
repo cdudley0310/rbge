@@ -1,0 +1,162 @@
+---
+title: 'Phylogeny Statistics'
+output:
+  pdf_document: default
+header-includes:
+   - \usepackage{caption}
+   - \captionsetup{width = 5.75in, font = small}
+---
+```{r setup, include = FALSE}
+library(knitr) # for r markdown control
+library(kableExtra) # r markdown extras
+
+# a prefix nulling hook.
+
+# make sure to keep the default for normal processing
+default_output_hook <- knitr::knit_hooks$get('output')
+
+# output hooks handle normal R console output
+knitr::knit_hooks$set(output = function(x, options) {
+  
+  # grab 'comment' setting
+  comment <- knitr::opts_current$get('comment')
+  
+  # if NA, replace comment with ''
+  if(is.na(comment)) comment <- ''
+  
+  # regex to logically detect '\\s*[#]' string in x (the output string)
+  can_null <- grepl(paste0(comment, '\\s*\\[\\d+\\]'), 
+                     x, perl = TRUE)
+  
+  # check if 'null_prefix' chunk option is set to TRUE
+  do_null <- isTRUE(knitr::opts_current$get('null_prefix'))
+  
+  if(can_null && do_null) {
+    
+    # R print output aligns at the right brace, gather this value - 1
+    align_index <- regexpr('\\]', x)[1] - 1
+  
+    # start of string, any character matching align_index times followed by ]
+    re <- paste0('^.{', align_index, '}\\]\\s?')
+    rep <- comment
+    x <- gsub(re, rep, x) # replace re with empty string in x
+    
+    # new line, any character matching align_index times followed by ]
+    re <- paste0('\\\n.{', align_index, '}\\]\\s?')
+    rep <- paste0('\n', comment) # new line followed by comment
+    x <- gsub(re, rep, x) # replace re with new line followed by comment
+  }
+  
+  default_output_hook(x, options)
+
+})
+
+# set knitr defaults
+knitr::opts_chunk$set(cache = TRUE,
+                      cache.comments = FALSE,
+                      comment = NA, # remove ## from output
+                      message = FALSE, 
+                      warning = FALSE, 
+                      error = FALSE,
+                      fig.align = 'center',
+                      null_prefix = TRUE) # remove [1] from output
+```
+
+## Part I -- Phylogeny Content Statistics
+
+### Packages
+```{r packages}
+library(tidyverse) # for general data manipulation
+```
+
+### Data
+
+The data used for the descriptive statistics of the phylogeny comes from two sources: the overall dataset used to build the phylogeny and a tab-delimited table exported by [Sequence Matrix v1.8](http://www.ggvaidya.com/taxondna/) containing the names of the taxa used in the final alignment, along with the identity and length of the gene regions sequenced for those taxa. The two data frames are joined together using `dplyr::semi_join()` to create a single data frame containing information on the family, phytogeographic domain, lifeform and location (state) for the species found in the phylogeny. The composite taxa from outside of Brazil were removed for these statistics.
+
+```{r data, results = 'hide'}
+# tibble containing information for all species found in Brazil
+
+(data <- read_csv('nordeste.csv'))
+
+# tibble containing all taxa found in the phylogeny
+
+(phylo <- read_csv('alignment_table.csv'))
+
+# remove OUTSIDE taxa from the data; total of 248 OUTSIDE taxa removed
+(phylo <- phylo %>% 
+  filter(str_detect(Taxon, 'OUTSIDE', negate = TRUE)) %>% 
+  mutate(Combination = str_replace(Taxon, '.*aceae\\s', '')))
+
+### phylo$Combination <- sub('.*aceae ', '', phylo$Taxon)
+
+# select only the species from the data which were used to create the phylogeny
+(stats <- semi_join(data, phylo, by = 'Combination'))
+
+# 6 taxa were renamed during the ncbi search and their synonym equivalent 
+# in the data could not be found; they are tacked on to the end of 
+# the stats data for completeness as they were used in the tree
+(stats <- phylo %>% 
+  select(Combination) %>% 
+  setdiff(select(stats, Combination)) %>% 
+  mutate(Family = c('Bromeliaceae', 'Fabaceae', 'Fabaceae', 
+                    'Fabaceae', 'Poaceae', 'Poaceae')) %>% 
+  full_join(stats, .))
+```
+
+### The `tbl_func` Function
+
+The function `tbl_func` was created to count instances of a desired variable in both the overall set of data and the subset containing only the species found in the phylogeny. `tbl_func` also provides the percentage value of the variable to the whole in the data_Percentage and tree_Percentage columns. Lastly, `tbl_func` creates a column (total_Percentage) indicating the percentage of overall data that is found in the phylogeny for a particular variable.
+
+```{r tbl_func}
+tbl_func <- function(x, y, States = FALSE){ # function to create % tables
+  
+    # x -- variable from the overall set of data
+    # y -- variable from the phylogeny subset
+    # States -- whether or not the variable of interest is the location (state)
+  
+    # data frame containing counts and percentages of overall data  
+    tbl.x <- x
+    res.x <- data.frame(cbind(row.names(tbl.x), tbl.x, 
+      if(States == TRUE) {round(tbl.x / length(data[, 1]) * 100, 2)
+      } else {
+        round(prop.table(tbl.x) * 100, 2)}))
+    colnames(res.x) <- c('id', 'data_Count', 'data_Percentage')
+    
+    # data frame containing counts and percentages of phylogeny data
+    tbl.y <- y
+    res.y <- data.frame(cbind(row.names(tbl.y), tbl.y, 
+      if(States == TRUE) {
+      round(tbl.y / length(stats[, 1]) * 100, 2)
+        } else {
+          round(prop.table(tbl.y) * 100, 2)}))
+    colnames(res.y) <- c('id', 'tree_Count', 'tree_Percentage')
+    
+    # join the above data frames and add a column showing the 
+    # percentage of overall data that is found in the tree
+    res <- full_join(res.x, res.y, by = 'id')
+    
+    # rename any empty id names 'Unknown'
+    (res <- res %>% 
+      mutate(id = str_replace(id, '^$', 'Unknown')) %>% 
+      mutate_all(type.convert) %>% 
+      mutate_if(is.numeric, ~replace_na(., 0)) %>% 
+      # column showing the percentage of overall data that is found in the tree
+      mutate(total_Percentage = round(tree_Count / data_Count * 100, 2)))
+}
+```
+
+### Descriptive Statistics
+
+#### Family
+
+We can use the Family columns of our data sets to illustrate the use of `tbl_func`. The two variables for the function are `table(data$Family)` and `table(stats$Family)` and these provide a count of the number of taxa belonging to each family in the data sets and the function does the rest. As the table shows, in the overall data, there are 1,328 members of the Fabaceae family, comprising 8.12% of all taxa in the data set. There are 601 members of the Acanthaceae family in the phylogeny, comprising 14.17% of all taxa in the tree. Of all 1,328 Acanthaceae in the overall data set, only 45.26% of them were used in the creation of the phylogeny. The function has also been applied to the Lifeform, Phyotogeographic Domain and State columns below. Please note that the taxa from outside of Brazil were not included in these statistics.
+
+```{r family, results = 'hide'}
+family_tbl <- tbl_func(table(data$Family), table(stats$Family))
+family_tbl[order(-family_tbl$tree_Percentage), ]
+```
+```{r family_print, echo = FALSE}
+family_tbl[order(-family_tbl$tree_Percentage), ] %>%
+  kable(format = 'pandoc', caption = 'Family -- A table showing the count and percentages of taxa per family. data_Count: Number of taxa in the overall data from family X. data_Percentage: Percentage of overall data composed of taxa from family X. tree_Count: Number of taxa in the tree family X. tree_Percentage: Percentage of the tree composed of taxa from family X. total_Percentage: Percentage of all taxa from family X used in the tree.', booktabs = TRUE, longtable = TRUE) %>% 
+  kable_styling(latex_options = c('repeat_header', 'striped'), repeat_header_text = 'Family (continued)', repeat_header_method = 'replace')
+```

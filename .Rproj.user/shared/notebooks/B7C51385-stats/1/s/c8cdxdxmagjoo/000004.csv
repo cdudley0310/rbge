@@ -1,0 +1,4 @@
+"0",""
+"0","# tibble containing all taxa found in the phylogeny"
+"0",""
+"0","(phylo <- read_csv('alignment_table.csv'))"

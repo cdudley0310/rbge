@@ -1,0 +1,2 @@
+"0","lifeform_tbl <- tbl_func(table(data$Formas_de_Vida), table(stats$Formas_de_Vida))"
+"0","lifeform_tbl[order(-lifeform_tbl$tree_Percentage), ]"
