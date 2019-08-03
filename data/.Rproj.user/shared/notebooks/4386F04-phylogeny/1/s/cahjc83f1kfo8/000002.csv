@@ -1,0 +1,5 @@
+"0","library(tidyverse) # for general data manipulation"
+"0","library(rentrez) # for accessing the NCBI database"
+"0","library(pbapply) # provides a timer for the apply family of functions"
+"0","library(XML) # used to change xml output from NCBI to a list format"
+"0","library(phylotools) # for importing and altering tree files"

@@ -1,6 +1,0 @@
-"0","```r
-data <- read.csv('./RBGE.csv', header = TRUE) # database containing the species of interest
-data <- data[1:4] # the database contains more information than we need for building a phylogeny; for the sake of clarity, we are only taking the first four columns which contain the family, genus, species and combination (Genus species)
-data$Combination <- gsub(' ', '_', data$Combination) # for ease of comparison purposes, the ' ' in the combination is replaced with an '_'
-data[data$Genus == 'Syagrus', ]
-```"

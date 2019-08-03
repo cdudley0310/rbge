@@ -1,0 +1,5 @@
+"0","# remove trait data and alter spaces in combination names"
+"0","(data <- data %>% "
+"0","  select(Family:Combination) %>% "
+"0","  mutate(Combination = str_replace_all(Combination, ' ', '_')) %>% "
+"0","  slice(15:30))"

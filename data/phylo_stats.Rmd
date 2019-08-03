@@ -1,64 +1,12 @@
 ---
-title: "Phylogeny Statistics"
+title: 'Phylogeny Statistics'
+author: 'Christopher Dudley'
 output:
   pdf_document: 
+    highlighting: kate
     df_print: kable
 ---
-```{r setup, include = FALSE}
-library(knitr) # for r markdown control
-library(kableExtra) # r markdown extras
-
-# a prefix nulling hook.
-
-# make sure to keep the default for normal processing
-default_output_hook <- knitr::knit_hooks$get('output')
-
-# output hooks handle normal R console output
-knitr::knit_hooks$set(output = function(x, options) {
-  
-  # grab 'comment' setting
-  comment <- knitr::opts_current$get('comment')
-  
-  # if NA, replace comment with ''
-  if(is.na(comment)) comment <- ''
-  
-  # regex to logically detect '\\s*[#]' string in x (the output string)
-  can_null <- grepl(paste0(comment, '\\s*\\[\\d+\\]'), 
-                     x, perl = TRUE)
-  
-  # check if 'null_prefix' chunk option is set to TRUE
-  do_null <- isTRUE(knitr::opts_current$get('null_prefix'))
-  
-  if(can_null && do_null) {
-    
-    # R print output aligns at the right brace, gather this value - 1
-    align_index <- regexpr('\\]', x)[1] - 1
-  
-    # start of string, any character matching align_index times followed by ]
-    re <- paste0('^.{', align_index, '}\\]\\s?')
-    rep <- comment
-    x <- gsub(re, rep, x) # replace re with empty string in x
-    
-    # new line, any character matching align_index times followed by ]
-    re <- paste0('\\\n.{', align_index, '}\\]\\s?')
-    rep <- paste0('\n', comment) # new line followed by comment
-    x <- gsub(re, rep, x) # replace re with new line followed by comment
-  }
-  
-  default_output_hook(x, options)
-
-})
-
-# set knitr defaults
-knitr::opts_chunk$set(cache = TRUE,
-                      comment = NA, # remove ## from output
-                      message = FALSE, 
-                      warning = FALSE, 
-                      error = FALSE,
-                      fig.align = 'center',
-                      null_prefix = TRUE) # remove [1] from output
-
-options(knitr.table.format = 'latex')
+```{r setup, ```{r setup, code = readLines('../setup.R'), include = FALSE}
 ```
 
 ## Background

@@ -1,12 +1,13 @@
 ---
-title: "Community-level Phylogeny Creation"
+title: 'Community-level Phylogeny Creation'
+author: 'Christopher Dudley'
 output:
   pdf_document: default
 ---
 
 ## Background
 
-As part of a larger project focused on understanding how land-use change in the *caatinga* region of the Northeast Region of Brazil has altered the composition of pant species in the region, we set out to create a community-level phylogeny so we could analyse the relationships within the community. Due to the rapidly changing nature of the area, the phylogeny will also inform us of species which require collection and genetic sequencing before they are potentially extinct. 
+As part of a larger project focused on understanding how land-use change in the *caatinga* region of the Northeast Region of Brazil has altered the composition of plant species in the region, we set out to create a community-level phylogeny so we could analyse the relationships within the community. Due to the rapidly changing nature of the area, the phylogeny will also inform us of species which require collection and genetic sequencing before they are potentially extinct. 
 
 ## Packages, Data and Repeated Functions
 
@@ -28,7 +29,8 @@ The data used for creating the phylogeny contains the names and traits of 16,349
 # remove trait data and alter spaces in combination names
 (data <- data %>% 
   select(Family:Combination) %>% 
-  mutate(Combination = str_replace_all(Combination, ' ', '_')))
+  mutate(Combination = str_replace_all(Combination, ' ', '_')) %>% 
+  slice(15:30))
 ```
 
 A few functions were created to facilitate the creation of the phylogeny.
@@ -110,7 +112,9 @@ seek_seqs <- function(x, GENE = NULL, SLEN = NULL, RET = 1,
     
       # replaces the spaces in x with '_' to prevent the sequence label being 
       # truncated when creating trees
-      rapply(tmp, function(x) str_replace_all(x, ' ', '_'), how = 'replace') 
+      tmp$INSDSeq$INSDSeq_organism <- str_replace_all(tmp$INSDSeq$INSDSeq_organism, 
+                                                      '\\s', '_')
+      tmp
   })
   
   ## Write Fasta File ##
@@ -134,7 +138,9 @@ seek_seqs <- function(x, GENE = NULL, SLEN = NULL, RET = 1,
   if(REPLACEMENT == FALSE & OUTSIDE == TRUE) 
     seqs <<- map_chr(seqs, function(x){
                      str_replace(x$INSDSeq$INSDSeq_organism, '_.*$', '')
-  }) 
+  })
+  
+  print('Finished')
 }
 
 ### write_fasta ###
@@ -163,9 +169,8 @@ write_fasta <- function(x, GENE = NULL, ACCESSION = FALSE, FAMILY = FALSE,
   fasta <- map_chr(x, function(x){
     paste0('>',
         if(ACCESSION == TRUE) paste0(x$INSDSeq$INSDSeq_locus, '_'),
-        if(FAMILY == TRUE) paste0(regmatches(x$INSDSeq$INSDSeq_taxonomy, 
-                                  regexpr('[[:alpha:]]*aceae', 
-                                  x$INSDSeq$INSDSeq_taxonomy)), '_'), 
+        if(FAMILY == TRUE) paste0(str_extract(x$INSDSeq$INSDSeq_taxonomy, 
+                                              '[[:alpha:]]*aceae'), '_'), 
         if(COMBINATION == TRUE) str_replace(x$INSDSeq$INSDSeq_organism,
                                             '_[[:alpha:]]*\\..*$', ''),
         if(GENUS == TRUE) str_replace(x$INSDSeq$INSDSeq_organism, '_.*$', ''),
@@ -212,7 +217,7 @@ Sequences were downloaded from the NCBI database using the `seek_seqs` function.
 ### Initial Accession Search and Sequence Fetch:
 
 ```{r initial_search, eval = FALSE}
-seek_seqs(data$Combination, GENE = 'atpB', SLEN = '500:5000', RET = 1,
+seek_seqs(data$Combination, GENE = 'matK', SLEN = '500:5000', RET = 1,
           WRITE = TRUE, ACCESSION = TRUE, FAMILY = TRUE, COMBINATION = TRUE) 
 # a search of the NCBI database for taxa of interest with sequence data for the 
 # 'atpB' gene between 500 and 5000 nucleotides in length; writes the retrieved 

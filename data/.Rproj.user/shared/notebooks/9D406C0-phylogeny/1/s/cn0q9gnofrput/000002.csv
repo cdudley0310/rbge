@@ -1,3 +1,0 @@
-"0","```r
-SeekAndFind(del.taxa('atpB', OUTSIDE = TRUE), GENE = 'atpB', SLEN = '500:5000', RET = 2, REPLACEMENT = TRUE, OUTSIDE = TRUE, WRITE = TRUE, ACCESSION = TRUE, FAMILY = TRUE, GENUS = TRUE, COMP = TRUE, APPEND = TRUE) # similar to the above except we increase 'RET' to search for the second (or third, fourth, etc.) instance of a term and 'REPLACEMENT = TRUE' to avoid overwriting 'Seqs'; note that the vector containing taxa to be replaced comes from the 'del.taxa' function
-```"

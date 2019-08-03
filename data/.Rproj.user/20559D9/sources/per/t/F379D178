@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1563136724688.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "388803206",
+    "id" : "F379D178",
+    "lastKnownWriteTime" : 1564521075,
+    "last_content_update" : 1564521075301,
+    "path" : "~/Library/Mobile Documents/com~apple~CloudDocs/RBGE/data/phylo_stats.Rmd",
+    "project_path" : "phylo_stats.Rmd",
+    "properties" : {
+        "cursorPosition" : "5,22",
+        "scrollLine" : "0"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

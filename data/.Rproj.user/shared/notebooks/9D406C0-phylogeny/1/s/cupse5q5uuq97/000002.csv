@@ -1,3 +1,0 @@
-"0","```r
-SeekAndFind(del.taxa('atpB'), GENE = 'atpB', SLEN = '500:5000', RET = 2, REPLACEMENT = TRUE, WRITE = TRUE, ACCESSION = TRUE, FAMILY = TRUE, COMBINATION = TRUE, APPEND = TRUE) # here we increase 'RET' to 2, grabbing the second ID for the desired species if available, ensuring that it was not an ID from the initial search; if running more than one replacement search, simply increase RET accordingly. also made 'APPEND = TRUE' to add found sequences to the sequence file instead of overwriting the file and 'REPLACEMENT = TRUE' to avoid overwriting 'Seqs' in case further comparison is required; note that the vector containing taxa to be replaced comes from the 'del.taxa' function
-```"

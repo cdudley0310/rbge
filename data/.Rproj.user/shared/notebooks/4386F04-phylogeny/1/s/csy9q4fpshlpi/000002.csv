@@ -1,0 +1,17 @@
+"0","(data <- read_csv('nordeste.csv'))"
+"2","Parsed with column specification:
+cols(
+  .default = col_double(),
+  Family = [31mcol_character()[39m,
+  Genus = [31mcol_character()[39m,
+  Species = [31mcol_character()[39m,
+  Combination = [31mcol_character()[39m,
+  Endimica = [31mcol_character()[39m,
+  Formas_de_Vida = [31mcol_character()[39m,
+  Distr_UF = [31mcol_character()[39m,
+  Dom_Fitogeografico = [31mcol_character()[39m,
+  Tipo_Vegetacao = [31mcol_character()[39m
+)
+"
+"2","See spec(...) for full column specifications.
+"
